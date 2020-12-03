@@ -1,0 +1,4 @@
+.DS_Store
+*.out
+*.o
+!final/hello.out
