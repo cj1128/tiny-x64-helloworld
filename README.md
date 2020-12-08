@@ -24,7 +24,7 @@ $ make build && make list
 -rwxr-xr-x 1 root root   170 Dec  4 00:08 final/hello.out
 ```
 
-## step0
+## Step0
 
 This is our first try, the good old program to print "hello, world".
 
@@ -43,7 +43,7 @@ main()
 
 Unfortunately, it's too big, 16712 bytes!
 
-## step1: strip symbols
+## Step1: Strip Symbols
 
 Let's take an easy move to strip all the symbols.
 
@@ -51,7 +51,7 @@ Let `gcc -c` do the work and now we get out new binary, it's 14512 bytes.
 
 Still big, but hey, we certainly make a progress, do hurry 😉.
 
-## step2: optimization
+## Step2: Optimization
 
 Modern compilers can do a lot of "magic" to optimize our program, let's give it a try.
 
@@ -59,7 +59,7 @@ Modern compilers can do a lot of "magic" to optimize our program, let's give it 
 
 It actually makes sense though. Our program is too simple, there isn't any room left to optimize.
 
-## step3: remove startup files
+## Step3: Remove Startup Files
 
 Our C program always starts with `main`, but Do you ever wonder who calls `main`?
 
@@ -91,7 +91,7 @@ Use `gcc -e nomain -notartfiles` to compiler our program and now our binary is 1
 
 We are making a progress again!
 
-## step4: remove standard library
+## Step4: Remove Standard Library
 
 We can go more wilder. We don't need the crt to do the startup, why do we need to use `printf` to print? We can certainly do it on our own!
 
@@ -139,7 +139,7 @@ And we get 12912 bytes.
 
 Our program doesn't depend on anyting now, but it's still very big, why????
 
-## step5: custom linker script
+## Step5: Custom Linker Script
 
 Let's examine sctions of our binary.
 
@@ -180,13 +180,13 @@ SECTIONS
 
 `gcc -T link.lds` and we get 584 bytes, a huge step 🔥.
 
-## step6: assembly
+## Step6: Assembly
 
 Can we do better? There is nothing we can do inside the C world, it's time to move to the lower level.
 
-Handmade assembly seems terrfying, just give it a try, you will find it's actually very interesting.
+Let's write some assembly code! It sounds terrfying, but just give it a try, you will find it's actually very interesting.
 
-You are like the God, you can control everyting!
+We are the God of computer, we can control everyting!
 
 ```nasm
 section .data
@@ -208,28 +208,110 @@ nomain:
 
 Use `nasm` to assemble our code and we get 440 bytes.
 
-## step7: handmade binary
+## Step7: Handmade Binary
 
-Can we do better?
+Is there anyting we can do now? We are at the lowest level, there is no "lower-level" for us to go.
+
+There is no room for our code, but the binary that runs on OS is not just the code. It is a file format called ELF and it contains some extra info.
+
+So maybe we can do something to shrink that extra info?
+
+Or maybe we can write the ELF from scratch? This way, we can control every bit of our binary.
+
+```nasm
+BITS 64
+  org 0x400000
+
+ehdr:           ; Elf64_Ehdr
+  db 0x7f, "ELF", 2, 1, 1, 0 ; e_ident
+  times 8 db 0
+  dw  2         ; e_type
+  dw  0x3e      ; e_machine
+  dd  1         ; e_version
+  dq  _start    ; e_entry
+  dq  phdr - $$ ; e_phoff
+  dq  0         ; e_shoff
+  dd  0         ; e_flags
+  dw  ehdrsize  ; e_ehsize
+  dw  phdrsize  ; e_phentsize
+  dw  1         ; e_phnum
+  dw  0         ; e_shentsize
+  dw  0         ; e_shnum
+  dw  0         ; e_shstrndx
+ehdrsize  equ  $ - ehdr
+
+phdr:           ; Elf64_Phdr
+  dd  1         ; p_type
+  dd  5         ; p_flags
+  dq  0         ; p_offset
+  dq  $$        ; p_vaddr
+  dq  $$        ; p_paddr
+  dq  filesize  ; p_filesz
+  dq  filesize  ; p_memsz
+  dq  0x1000    ; p_align
+phdrsize  equ  $ - phdr
+
+_start:
+  mov rax, 1
+  mov rdi, 1
+  mov rsi, message
+  mov rdx, 13
+  syscall
+  mov rax, 60
+  xor rdi, rdi
+  syscall
+
+message: db "hello, world", 0xa
+
+filesize  equ  $ - $$
+```
+
+And this is our final result: 170 bytes.
 
 ## Final Binary Anatomy
 
-```
-00: 7f 45 4c 46 02 01 01 00
-08: 00 00 00 00 00 00 00 00
-0:   b8 01 00 00 00          mov    $0x1,%eax
- 5:   bf 01 00 00 00          mov    $0x1,%edi
- a:   48 be 9d 00 40 00 00    movabs $0x40009d,%rsi
-11:   00 00 00
-14:   ba 0d 00 00 00          mov    $0xd,%edx
-19:   0f 05                   syscall
-1b:   b8 3c 00 00 00          mov    $0x3c,%eax
-20:   48 31 ff                xor    %rdi,%rdi
-23:   0f 05                   syscall
-25:   68 65 6c 6c 6f          pushq  $0x6f6c6c65
-2a:   2c 20                   sub    $0x20,%al
-2c:   77 6f                   ja     0x9d
-2e:   72 6c                   jb     0x9c
-30:   64                      fs
-31:   0a                      .byte 0xa
+And now, we reach the final limit, 170 bytes, there is no way to reduce that any more.
+
+PS: Actually, there is, check the post [A Whirlwind Tutorial on Creating Really Teensy ELF Executables for Linux](http://www.muppetlabs.com/~breadbox/software/tiny/teensy.html). I am not gonna use techniques in this post, because they are so "hack".
+
+Now let's see what exactly every byte does in our 170-bytes final binary.
+
+```elixir
+# ELF Header
+00:   7f 45 4c 46 02 01 01 00 # e_ident
+08:   00 00 00 00 00 00 00 00 # reserved
+10:   02 00 # e_type
+12:   3e 00 # e_machine
+14:   01 00 00 00 # e_version
+18:   78 00 40 00 00 00 00 00 # e_entry
+20:   40 00 00 00 00 00 00 00 # e_phoff
+28:   00 00 00 00 00 00 00 00 # e_shoff
+30:   00 00 00 00 # e_flags
+34:   40 00 # e_ehsize
+36:   38 00 # e_phentsize
+38:   01 00 # e_phnum
+3a:   00 00 # e_shentsize
+3c:   00 00 # e_shnum
+3e:   00 00 # e_shstrndx
+
+# Program Header
+40:   01 00 00 00 # p_type
+44:   05 00 00 00 # p_flags
+48:   00 00 00 00 00 00 00 00 # p_offset
+50:   00 00 40 00 00 00 00 00 # p_vaddr
+58:   00 00 40 00 00 00 00 00 # p_paddr
+60:   aa 00 00 00 00 00 00 00 # p_filesz
+68:   aa 00 00 00 00 00 00 00 # p_memsz
+70:   00 10 00 00 00 00 00 00 # p_align
+
+# Code
+78:   b8 01 00 00 00          # mov    $0x1,%eax
+7d:   bf 01 00 00 00          # mov    $0x1,%edi
+82:   48 be 9d 00 40 00 00 00 00 00    # movabs $0x40009d,%rsi
+8c:   ba 0d 00 00 00          # mov    $0xd,%edx
+91:   0f 05                   # syscall
+93:   b8 3c 00 00 00          # mov    $0x3c,%eax
+98:   48 31 ff                # xor    %rdi,%rdi
+9b:   0f 05                   # syscall
+9d:   68 65 6c 6c 6f 2c 20 77 6f 72 6c 64 0a # "hello, world\n"
 ```
