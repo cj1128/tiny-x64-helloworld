@@ -87,7 +87,7 @@ nomain()
 You must wonder why we are using `_exit` rather than `exit`? Good old StackOverflow always helps, check [What is the difference between using \_exit() & exit() in a conventional Linux fork-exec?
 ](https://stackoverflow.com/questions/5422831/what-is-the-difference-between-using-exit-exit-in-a-conventional-linux-fo).
 
-Use `gcc -e nomain -notartfiles` to compiler our program and now our binary is 13664 bytes.
+Use `gcc -e nomain -nostartfiles` to compiler our program and now our binary is 13664 bytes.
 
 We are making a progress again!
 
@@ -110,7 +110,7 @@ myprint()
       "movq %0, %%rsi \n"
       "movq $13, %%rdx \n"
       "syscall \n"
-      : // not output
+      : // no output
       : "r"(str)
       : "rax", "rdi", "rsi", "rdx");
 }
@@ -206,7 +206,7 @@ nomain:
   syscall
 ```
 
-Use `nasm` to assemble our code and we get 440 bytes.
+Use `nasm -f elf64` to assemble our code and we get 440 bytes.
 
 ## Step7: Handmade Binary
 
@@ -266,7 +266,7 @@ message: db "hello, world", 0xa
 filesize  equ  $ - $$
 ```
 
-And this is our final result: 170 bytes.
+`nasm -f bin` to bake our binary and our final result is 170 bytes.
 
 ## Final Binary Anatomy
 

@@ -8,7 +8,7 @@ myprint()
       "movq %0, %%rsi \n"
       "movq $13, %%rdx \n"
       "syscall \n"
-      : // not output
+      : // no output
       : "r"(str)
       : "rax", "rdi", "rsi", "rdx");
 }
